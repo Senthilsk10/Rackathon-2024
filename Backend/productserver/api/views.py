@@ -37,3 +37,84 @@ class MongoDataAPI:
         print(body)
         response = requests.post(url, headers=self.headers, json=body)
         return response.json().get("documents", [])
+
+    def get_item(self, pid):
+        pipeline = [
+            {"$match": {"pid": pid}},
+            {"$project": projection},
+            {"$limit": 1}
+        ]
+        result = self._make_request(pipeline)
+        return result[0] if result else error_message
+
+    def get_category_data(self, category, samples):
+        pipeline = [
+            {"$match": {"sub_category": category, "$expr": {"$gt": [{"$size": "$images"}, 1]}}},
+            {"$sample": {"size": int(samples)}},
+            {"$project": listing_projection}
+        ]
+        return self._make_request(pipeline)
+
+    def get_categories(self):
+        pipeline = [
+            {"$group": {"_id": "$sub_category"}},
+            {"$project": {"_id": 0, "category": "$_id"}},
+            {"$sort": {"category": 1}}
+        ]
+        result = self._make_request(pipeline)
+        return [doc["category"] for doc in result]
+
+    def search(self, query, limit=10, skip=0):
+        pipeline = [
+            {"$match": {
+                "$text": {"$search": query},
+                "$expr": {"$gt": [{"$size": "$images"}, 1]}
+            }},
+            {"$project": listing_projection},
+            {"$skip": skip},
+            {"$limit": limit},
+            {"$facet": {
+                "results": [],
+                "totalCount": [{"$count": "count"}]
+            }},
+            {"$project": {
+                "results": 1,
+                "paging": {
+                    "limit": {"$literal": limit},
+                    "skip": {"$literal": skip},
+                    "count": {"$arrayElemAt": ["$totalCount.count", 0]}
+                }
+            }}
+        ]
+        result = self._make_request(pipeline)
+        return result[0] if result else {"results": [], "paging": {"limit": limit, "skip": skip, "count": 0}}
+    def get_review(self, category):
+        pipeline = pipeline = [
+            {
+                "$match": {
+                    "category": "Blazers, Waistcoats and Suits"
+                }
+            },
+            {
+                "$sample": {
+                    "size": 10
+                }
+            },
+            {
+                "$group": {
+                    "_id": None,
+                    "documents": { "$push": "$$ROOT" },
+                    "ratings": { "$push": "$rating" }
+                }
+            },
+            {
+                "$project": {
+                    "_id": 0,
+                    "documents": 1,
+                    "ratings": 1
+                }
+            } 
+        ]
+
+        result = self._make_request(pipeline,reviews=True)
+        return result[0] if result else {"results": []}
