@@ -5,7 +5,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 from .models import DataEntry
 import json
-from .gemini import summarize
+from .gemini import *
 import markdown
 
 # Assuming you've set these in your Django settings
@@ -19,6 +19,11 @@ error_message = {"error": "no matching record found"}
 projection = {"_id": 0, "url": 0}
 summary_projection = {"_id": 0, "url": 0,"title":0,"images":0}
 listing_projection = {"title": 1, "price": 1, "images": 1, "_id": 0, "pid": 1}
+
+
+def cors_response(response):
+    response["Access-Control-Allow-Origin"] = '*'
+    return response
 
 class MongoDataAPI:
     def __init__(self):
@@ -140,17 +145,15 @@ def home(request):
         products = mongo.get_category_data(category, samples=samples)
         data[category] = products
     
-    response = JsonResponse(data, safe=False, status=200)
-    response["Access-Control-Allow-Origin"] = "*"
-    return response
+    return cors_response(JsonResponse(data, safe=False, status=200))
+    
 @csrf_exempt
 def get_item(request, **kwargs):
     pid = kwargs.get("pid", None)
     mongo = MongoDataAPI()
     item = mongo.get_item(pid)
-    response = JsonResponse(item, safe=False, status=200)
-    response["Access-Control-Allow-Origin"] = "*"
-    return response
+    return cors_response(JsonResponse(item, safe=False, status=200))
+    
 @csrf_exempt
 def search(request):
     query = request.GET.get("query")
@@ -158,14 +161,7 @@ def search(request):
     skip = int(request.GET.get("skip", 0))
     mongo = MongoDataAPI()
     results = mongo.search(query, limit, skip)
-    response = JsonResponse(results, safe=False, status=200)
-    response["Access-Control-Allow-Origin"] = "*"
-    return response
-def test(request):
-    response = JsonResponse({"success":"response sent"},safe=False,status=200)
-    response["Access-Control-Allow-Origin"] = "*"
-    return response
-
+    return cors_response(JsonResponse(results,status=200,safe=False))
 
 @csrf_exempt
 def store_data(request):
@@ -176,44 +172,35 @@ def store_data(request):
             json_data = data.get('json_data')
 
             if not user_id or not json_data:
-                response = JsonResponse({'error': 'Invalid data provided'}, status=400)
-                response["Access-Control-Allow-Origin"] = "*"
-                return response
+                return cors_response(JsonResponse({'error': 'Invalid data provided'}, status=400))
+                
             DataEntry.objects.create(user_id=user_id, json_data=json_data)
 
-            response =  JsonResponse({'status': 'success', 'message': 'Data stored successfully'}, status=201)
-            response["Access-Control-Allow-Origin"] = "*"
-            return response
+            return cors_response(JsonResponse({'status': 'success', 'message': 'Data stored successfully'}, status=201))
+           
         except json.JSONDecodeError:
-            response = JsonResponse({'error': 'Invalid JSON'}, status=400)
-            response["Access-Control-Allow-Origin"] = "*"
-            return response
+            return cors_response(JsonResponse({'error': 'Invalid JSON'}, status=400))
+            
         except Exception as e:
-            response = JsonResponse({'error': str(e)}, status=500)
-            response["Access-Control-Allow-Origin"] = "*"
-            return response
+            return cors_response(JsonResponse({'error': str(e)}, status=500))
+            
     else:
-        response = JsonResponse({'error': 'Invalid request method'}, status=405)
-        response["Access-Control-Allow-Origin"] = "*"
-        return response
+        return cors_response(JsonResponse({'error': 'Invalid request method'}, status=405))
+        
     
 
 def home_cache(request):
     data = None
     with open("cache.json","r") as f:
         data = json.loads(f.read())
-    response = JsonResponse(data, safe=False, status=200)
-    response["Access-Control-Allow-Origin"] = "*"
-    return response
-
+    return cors_response(JsonResponse(data,safe=False,status = 200))
 
 def get_review(request):
     category= request.GET.get("category")
     mongo = MongoDataAPI()
     results = mongo.get_review(category)
-    response = JsonResponse(results, safe=False, status=200)
-    response["Access-Control-Allow-Origin"] = "*"
-    return response
+    return cors_response(JsonResponse(results, safe=False, status=200))
+    
     
     
 @csrf_exempt
@@ -227,7 +214,17 @@ def summarizer(request):
         response = summarize(products)
         # html = markdown.markdown(response.get('message',"### Error fetching summary"))
         html = (response.get('message',"### Error fetching summary"))
-        print(html)
-        response = JsonResponse({"html":html})
-        response["Access-Control-Allow-Origin"] = "*"
-        return response
+        return  cors_response(JsonResponse({"html":html},safe=False,status=200))
+        
+    
+    
+    
+@csrf_exempt
+def chat(request):
+    data= json.loads(request.body)
+    query,prod,history = data['query'],data['product'],data.get("history",None)
+    response = chat_completion({"query":query,"products":prod},prev=history)
+    
+    
+    html = markdown.markdown(response.get("message","### error contacting chatbot"))
+    return  cors_response(JsonResponse({"html":html},safe=False,status=200))
