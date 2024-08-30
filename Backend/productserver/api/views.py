@@ -5,6 +5,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 from .models import DataEntry
 import json
+from .gemini import summarize
+import markdown
 
 # Assuming you've set these in your Django settings
 DATA_API_URL = settings.MONGODB_DATA_API_URL
@@ -15,6 +17,7 @@ COLLECTION = "products"
 
 error_message = {"error": "no matching record found"}
 projection = {"_id": 0, "url": 0}
+summary_projection = {"_id": 0, "url": 0,"title":0,"images":0}
 listing_projection = {"title": 1, "price": 1, "images": 1, "_id": 0, "pid": 1}
 
 class MongoDataAPI:
@@ -34,7 +37,7 @@ class MongoDataAPI:
             "collection": COLLECTION,
             "pipeline": pipeline
         }
-        print(body)
+        
         response = requests.post(url, headers=self.headers, json=body)
         return response.json().get("documents", [])
 
@@ -45,6 +48,15 @@ class MongoDataAPI:
             {"$limit": 1}
         ]
         result = self._make_request(pipeline)
+        return result[0] if result else error_message
+    def get_item_invoked(self, pid):
+        pipeline = [
+            {"$match": {"pid": {"$in":pid}}},
+            {"$project": summary_projection}
+        ]
+        print(pipeline)
+        result = self._make_request(pipeline)
+        print(result)
         return result[0] if result else error_message
 
     def get_category_data(self, category, samples):
@@ -118,10 +130,74 @@ class MongoDataAPI:
 
         result = self._make_request(pipeline,reviews=True)
         return result[0] if result else {"results": []}
+@csrf_exempt
+def home(request):
+    samples = int(request.GET.get("samples", 7))
+    mongo = MongoDataAPI()
+    categories = mongo.get_categories()
+    data = {}
+    for category in categories:
+        products = mongo.get_category_data(category, samples=samples)
+        data[category] = products
     
+    response = JsonResponse(data, safe=False, status=200)
+    response["Access-Control-Allow-Origin"] = "*"
+    return response
+@csrf_exempt
+def get_item(request, **kwargs):
+    pid = kwargs.get("pid", None)
+    mongo = MongoDataAPI()
+    item = mongo.get_item(pid)
+    response = JsonResponse(item, safe=False, status=200)
+    response["Access-Control-Allow-Origin"] = "*"
+    return response
+@csrf_exempt
+def search(request):
+    query = request.GET.get("query")
+    limit = int(request.GET.get("limit", 10))
+    skip = int(request.GET.get("skip", 0))
+    mongo = MongoDataAPI()
+    results = mongo.search(query, limit, skip)
+    response = JsonResponse(results, safe=False, status=200)
+    response["Access-Control-Allow-Origin"] = "*"
+    return response
+def test(request):
+    response = JsonResponse({"success":"response sent"},safe=False,status=200)
+    response["Access-Control-Allow-Origin"] = "*"
+    return response
+
+
+@csrf_exempt
+def store_data(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            user_id = data.get('user_id')
+            json_data = data.get('json_data')
+
+            if not user_id or not json_data:
+                response = JsonResponse({'error': 'Invalid data provided'}, status=400)
+                response["Access-Control-Allow-Origin"] = "*"
+                return response
+            DataEntry.objects.create(user_id=user_id, json_data=json_data)
+
+            response =  JsonResponse({'status': 'success', 'message': 'Data stored successfully'}, status=201)
+            response["Access-Control-Allow-Origin"] = "*"
+            return response
+        except json.JSONDecodeError:
+            response = JsonResponse({'error': 'Invalid JSON'}, status=400)
+            response["Access-Control-Allow-Origin"] = "*"
+            return response
+        except Exception as e:
+            response = JsonResponse({'error': str(e)}, status=500)
+            response["Access-Control-Allow-Origin"] = "*"
+            return response
+    else:
+        response = JsonResponse({'error': 'Invalid request method'}, status=405)
+        response["Access-Control-Allow-Origin"] = "*"
+        return response
     
-    
-    
+
 def home_cache(request):
     data = None
     with open("cache.json","r") as f:
@@ -139,3 +215,19 @@ def get_review(request):
     response["Access-Control-Allow-Origin"] = "*"
     return response
     
+    
+@csrf_exempt
+def summarizer(request):
+    if request.method == "POST":
+        print(request.POST)
+        pids = json.loads(request.body)["pids"]
+        mongo = MongoDataAPI()
+        products = mongo.get_item_invoked(pids)
+        print(products)
+        response = summarize(products)
+        # html = markdown.markdown(response.get('message',"### Error fetching summary"))
+        html = (response.get('message',"### Error fetching summary"))
+        print(html)
+        response = JsonResponse({"html":html})
+        response["Access-Control-Allow-Origin"] = "*"
+        return response
