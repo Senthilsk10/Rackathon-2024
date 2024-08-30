@@ -118,3 +118,24 @@ class MongoDataAPI:
 
         result = self._make_request(pipeline,reviews=True)
         return result[0] if result else {"results": []}
+    
+    
+    
+    
+def home_cache(request):
+    data = None
+    with open("cache.json","r") as f:
+        data = json.loads(f.read())
+    response = JsonResponse(data, safe=False, status=200)
+    response["Access-Control-Allow-Origin"] = "*"
+    return response
+
+
+def get_review(request):
+    category= request.GET.get("category")
+    mongo = MongoDataAPI()
+    results = mongo.get_review(category)
+    response = JsonResponse(results, safe=False, status=200)
+    response["Access-Control-Allow-Origin"] = "*"
+    return response
+    
