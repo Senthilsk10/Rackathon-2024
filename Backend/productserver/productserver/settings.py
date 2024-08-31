@@ -20,12 +20,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-6on99hl^w&)8*zpvrcy*9iw%@@p*mtn2rh1$#dvnis1-2fnnig'
+SECRET_KEY = 'django-insecure-^spu3gn6r#m^^00vq7jp&fx@d9mo&9l7#^awhx#7w77-ps4*b-'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['acpproject021.pythonanywhere.com', 'localhost', '127.0.0.1']
 
 
 # Application definition
@@ -122,7 +122,6 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
 
 mongo_uri = 'mongodb://127.0.0.1:27017/?directConnection=true&serverSelectionTimeoutMS=2000&appName=mongosh+2.0.0'
 MONGODB_DATA_API_URL = "https://ap-south-1.aws.data.mongodb-api.com/app/data-oxgezlo/endpoint/data/v1"

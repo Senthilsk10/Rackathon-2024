@@ -38,3 +38,8 @@ class DataEntry(models.Model):
 
     def __str__(self):
         return f"DataEntry for user {self.user_id} at {self.timestamp}"
+
+
+class CoShop(models.Model):
+    user = models.IntegerField()
+    url_id = models.CharField(max_length=200,null=False)

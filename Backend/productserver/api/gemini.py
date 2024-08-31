@@ -5,7 +5,7 @@ import google.generativeai as genai
 import json
 
 #genai.configure(api_key=os.getenv('GENAI_API_KEY'))
-genai.configure(api_key="AIzaSyBrCisSoUqfhFvP2L3bXLhOUUZl9kHLbL0")
+genai.configure(api_key="AIzaSyAkJtvXass41BwG62jeGmZQj4Y6-yu8KcU")
 
 generation_config = {
   "temperature": 1,
@@ -163,6 +163,32 @@ def update_behavior(data,behaviour = None):
     )
 
     prompt_text = base_prompt + f"here are the current behaviour {data}" + f"here's the previous behavior {behaviour if behaviour else '' }" + "\nnote : you have to provide it like {'message':<your response>}"
+
+    response = model.generate_content([
+        prompt_text,
+        "input: ",
+        "output: ",
+    ])
+    
+    try:
+        resp = json.loads(response.text)
+    except json.JSONDecodeError as e:
+        print(f"Error parsing response: {e}")
+        resp = None
+    return resp
+
+
+def gemini_recommender(behavior,products):
+    base_prompt = (
+        """
+        I am providing you with product data and user behavior for a specific user. Based on the details create recommendations of product ids that may help users .
+        Behavioral Patterns: Analyze how the user interacts with different product categories and sections (e.g., item details, descriptions, specifications, reviews). use any noticeable patterns in their browsing and interaction habits.
+        Interest Levels: Identify which products the user shows strong interest in and what actions (e.g., adding to wishlist, adding to cart) indicate this interest. Highlight sections or features that seem to capture their attention the most.
+        in last provide two product ids for me as json format {pids:[<pid1>,<pid2>]}
+        """
+    )
+
+    prompt_text = base_prompt + f"here are the current behaviour {behavior}" + f"here is the products you have to recommend for : {products}"
 
     response = model.generate_content([
         prompt_text,
